@@ -1,6 +1,7 @@
 from flask import Flask, request, render_template_string
 import requests
 from bs4 import BeautifulSoup
+import urllib.parse
 
 app = Flask(__name__)
 
@@ -117,25 +118,22 @@ def home():
 
         for dork in dorks:
             try:
-                url = f"https://html.duckduckgo.com/html/?q={dork}"
-                r = requests.post(url, headers=headers, timeout=10)
+                url = f"https://duckduckgo.com/html/?q={dork}"
+                r = requests.get(url, headers=headers, timeout=10)
+
                 soup = BeautifulSoup(r.text, "html.parser")
 
-                found = False
+                for a in soup.find_all("a", href=True):
+                    link = a["href"]
 
-                # Cara utama
-                for a in soup.select("a.result__a"):
-                    link = a.get("href")
-                    if link and link.startswith("http") and "duckduckgo" not in link:
-                        result += link + "\\n"
-                        found = True
+                    # ambil link asli dari redirect
+                    if "uddg=" in link:
+                        real = urllib.parse.parse_qs(
+                            urllib.parse.urlparse(link).query
+                        ).get("uddg")
 
-                # Fallback (anti kosong)
-                if not found:
-                    for a in soup.find_all("a"):
-                        link = a.get("href")
-                        if link and link.startswith("http") and "duckduckgo" not in link:
-                            result += link + "\\n"
+                        if real:
+                            result += real[0] + "\\n"
 
             except:
                 result += f"[ERROR] {dork}\\n"
