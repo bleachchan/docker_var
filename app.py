@@ -3,7 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 import urllib.parse
 import random
-import time
+import re
 
 app = Flask(__name__)
 
@@ -12,53 +12,15 @@ HTML = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Dorker Pro</title>
-    <style>
-        body {
-            background: #0d1117;
-            color: #00ff9f;
-            font-family: monospace;
-            text-align: center;
-            padding: 20px;
-        }
-        textarea {
-            width: 90%;
-            height: 120px;
-            background: #161b22;
-            color: #00ff9f;
-            border: 1px solid #00ff9f;
-            padding: 10px;
-        }
-        button {
-            background: #00ff9f;
-            color: black;
-            border: none;
-            padding: 10px 20px;
-            margin: 5px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        button:hover {
-            background: #00cc7a;
-        }
-        pre {
-            background: black;
-            color: #00ff9f;
-            padding: 10px;
-            text-align: left;
-            max-height: 300px;
-            overflow: auto;
-            border: 1px solid #00ff9f;
-        }
-    </style>
+    <title>FOFA Smart Dorker</title>
 </head>
-<body>
+<body style="background:#0d1117;color:#00ff9f;font-family:monospace;text-align:center;padding:20px;">
 
-<h2>💀 AUTO DORKER PARSIVAL</h2>
+<h2>💀 FOFA SMART DORKER</h2>
 
-<textarea id="dork">inurl:login
-inurl:admin
-dashboard</textarea><br>
+<textarea id="dork" style="width:90%;height:120px;background:#161b22;color:#00ff9f;border:1px solid #00ff9f;padding:10px;">
+app="wordpress" && title="login"
+</textarea><br>
 
 <button onclick="start()">▶ START</button>
 <button onclick="loadMore()">➕ LOAD MORE</button>
@@ -67,7 +29,7 @@ dashboard</textarea><br>
 
 <h4>Total Target: <span id="count">0</span></h4>
 
-<pre id="result"></pre>
+<pre id="result" style="background:black;padding:10px;max-height:300px;overflow:auto;"></pre>
 
 <script>
 let page = 1;
@@ -100,9 +62,6 @@ function fetchData(){
 
         document.getElementById("result").innerText = allResults.join("\\n");
         document.getElementById("count").innerText = allResults.length;
-
-        let box = document.getElementById("result");
-        box.scrollTop = box.scrollHeight;
     });
 }
 
@@ -126,7 +85,63 @@ function copyResult(){
 def home():
     return render_template_string(HTML)
 
-# ================= HELPER =================
+# ================= FOFA PARSER =================
+def parse_fofa(query):
+    data = {}
+
+    patterns = {
+        "app": r'app="([^"]+)"',
+        "title": r'title="([^"]+)"',
+        "body": r'body="([^"]+)"'
+    }
+
+    for key, pattern in patterns.items():
+        match = re.search(pattern, query)
+        if match:
+            data[key] = match.group(1)
+
+    return data
+
+# ================= DORK GENERATOR =================
+def generate_dorks(parsed, raw):
+    dorks = []
+
+    # jika bukan FOFA → pakai langsung
+    if not parsed:
+        return raw.split("\\n")
+
+    # app logic
+    if "app" in parsed:
+        app = parsed["app"]
+
+        dorks += [
+            f"{app} login",
+            f"{app} admin",
+            f"{app} dashboard"
+        ]
+
+        if "wordpress" in app.lower():
+            dorks += [
+                "wordpress wp-login",
+                "wordpress wp-admin"
+            ]
+
+    # title
+    if "title" in parsed:
+        dorks.append(f'intitle:{parsed["title"]}')
+
+    # body
+    if "body" in parsed:
+        dorks.append(f'"{parsed["body"]}"')
+
+    return dorks
+
+# ================= FILTER =================
+def is_interesting(url):
+    keywords = ["login", "admin", "dashboard", "signin", "panel"]
+    return any(k in url.lower() for k in keywords)
+
+# ================= EXTRACT =================
 def extract_links(html):
     soup = BeautifulSoup(html, "html.parser")
     links = []
@@ -134,7 +149,6 @@ def extract_links(html):
     for a in soup.find_all("a", href=True):
         href = a["href"]
 
-        # ambil redirect duckduckgo
         if "uddg=" in href:
             real = urllib.parse.parse_qs(
                 urllib.parse.urlparse(href).query
@@ -143,10 +157,7 @@ def extract_links(html):
             if real:
                 links.append(real[0])
 
-        # ambil link langsung (bing dll)
-        elif href.startswith("http") and not any(x in href for x in [
-            "duckduckgo", "bing", "google", "javascript"
-        ]):
+        elif href.startswith("http"):
             links.append(href)
 
     return links
@@ -155,48 +166,44 @@ def extract_links(html):
 @app.route("/api", methods=["POST"])
 def api():
     data = request.get_json()
-    dorks = data["dork"].split("\\n")
+    raw_query = data["dork"]
+    page = data.get("page", 1)
+
+    parsed = parse_fofa(raw_query)
+    dorks = generate_dorks(parsed, raw_query)
 
     headers = {
-        "User-Agent": f"Mozilla/5.0 {random.randint(1000,9999)}"
+        "User-Agent": random.choice([
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "Mozilla/5.0 (Linux; Android 10)",
+            "Mozilla/5.0 (iPhone)"
+        ])
     }
 
-    result_list = []
-    MAX_RESULTS = 50
+    results = []
 
-    random.shuffle(dorks)
-
-    for dork in dorks[:4]:
+    for dork in dorks[:5]:
         try:
-            # 🔴 DuckDuckGo
-            ddg = requests.get(
-                f"https://duckduckgo.com/html/?q={dork}",
-                headers=headers,
-                timeout=5
-            )
-            result_list += extract_links(ddg.text)
+            start = (page - 1) * 30
+            url = f"https://duckduckgo.com/html/?q={urllib.parse.quote(dork)}&s={start}"
 
-            # 🔵 Bing
-            bing = requests.get(
-                f"https://www.bing.com/search?q={dork}",
-                headers=headers,
-                timeout=5
-            )
-            result_list += extract_links(bing.text)
+            r = requests.get(url, headers=headers, timeout=5)
+            links = extract_links(r.text)
 
-            time.sleep(1)
+            filtered = [x for x in links if is_interesting(x)]
+            results += filtered
 
         except:
             pass
 
-    # 🔥 remove duplicate
+    # dedup
     clean = []
-    for x in result_list:
+    for x in results:
         if x not in clean:
             clean.append(x)
 
-    return jsonify({"results": clean[:MAX_RESULTS]})
+    return jsonify({"results": clean[:50]})
 
-
+# ================= RUN =================
 if __name__ == "__main__":
     app.run(debug=True)
