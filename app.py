@@ -61,8 +61,7 @@ HTML = """
 <form method="post" onsubmit="showLoading()">
 <textarea name="dork">inurl:login
 inurl:admin
-dashboard
-</textarea><br>
+dashboard</textarea><br>
 
 <button type="submit">▶ START</button>
 <button type="button" onclick="clearResult()">🧹 CLEAR</button>
@@ -72,74 +71,14 @@ dashboard
 
 <div class="loading" id="loading">⚡ Scanning target...</div>
 
-<h4>Total Target: <span id="count">0</span></h4>
+<h4>Total Target: {{count}}</h4>
 
 <pre id="result">{{result}}</pre>
 
-<script>
-function clearResult(){
-    document.getElementById("result").innerHTML = "";
-    document.getElementById("count").innerText = 0;
-}
+<div style="margin-top:10px;">
+    {% if has_prev %}
+        <a href="?page={{page-1}}"><button>⬅ Prev</button></a>
+    {% endif %}
 
-function copyResult(){
-    let text = document.getElementById("result").innerText;
-    navigator.clipboard.writeText(text);
-    alert("Copied!");
-}
-
-function showLoading(){
-    document.getElementById("loading").style.display = "block";
-}
-
-window.onload = function(){
-    let result = document.getElementById("result").innerText.trim();
-    if(result){
-        let lines = result.split("\\n").filter(x => x.trim() !== "");
-        document.getElementById("count").innerText = lines.length;
-
-        let box = document.getElementById("result");
-        box.scrollTop = box.scrollHeight;
-    }
-}
-</script>
-
-</body>
-</html>
-"""
-
-@app.route("/", methods=["GET","POST"])
-def home():
-    result = ""
-    headers = {"User-Agent": "Mozilla/5.0"}
-
-    if request.method == "POST":
-        dorks = request.form["dork"].split("\\n")
-
-        for dork in dorks:
-            try:
-                url = f"https://duckduckgo.com/html/?q={dork}"
-                r = requests.get(url, headers=headers, timeout=10)
-
-                soup = BeautifulSoup(r.text, "html.parser")
-
-                for a in soup.find_all("a", href=True):
-                    link = a["href"]
-
-                    # ambil link asli dari redirect
-                    if "uddg=" in link:
-                        real = urllib.parse.parse_qs(
-                            urllib.parse.urlparse(link).query
-                        ).get("uddg")
-
-                        if real:
-                            result += real[0] + "\\n"
-
-            except:
-                result += f"[ERROR] {dork}\\n"
-
-    return render_template_string(HTML, result=result)
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
+    {% if has_next %}
+        <a href="?page={{page+1}}"><button>Next ➡</button></
