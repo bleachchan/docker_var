@@ -7,6 +7,7 @@ import time
 
 app = Flask(__name__)
 
+# ================= UI =================
 HTML = """
 <!DOCTYPE html>
 <html>
@@ -125,50 +126,76 @@ function copyResult(){
 def home():
     return render_template_string(HTML)
 
+# ================= HELPER =================
+def extract_links(html):
+    soup = BeautifulSoup(html, "html.parser")
+    links = []
 
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+
+        # ambil redirect duckduckgo
+        if "uddg=" in href:
+            real = urllib.parse.parse_qs(
+                urllib.parse.urlparse(href).query
+            ).get("uddg")
+
+            if real:
+                links.append(real[0])
+
+        # ambil link langsung (bing dll)
+        elif href.startswith("http") and not any(x in href for x in [
+            "duckduckgo", "bing", "google", "javascript"
+        ]):
+            links.append(href)
+
+    return links
+
+# ================= API =================
 @app.route("/api", methods=["POST"])
 def api():
     data = request.get_json()
     dorks = data["dork"].split("\\n")
-    page = int(data.get("page", 1))
 
     headers = {
         "User-Agent": f"Mozilla/5.0 {random.randint(1000,9999)}"
     }
 
     result_list = []
-    MAX_RESULTS = 30
+    MAX_RESULTS = 50
 
     random.shuffle(dorks)
 
-    for dork in dorks[:5]:
+    for dork in dorks[:4]:
         try:
-            offset = random.randint(0, 50) + (page * 10)
-            url = f"https://duckduckgo.com/html/?q={dork}&s={offset}"
+            # 🔴 DuckDuckGo
+            ddg = requests.get(
+                f"https://duckduckgo.com/html/?q={dork}",
+                headers=headers,
+                timeout=5
+            )
+            result_list += extract_links(ddg.text)
 
-            r = requests.get(url, headers=headers, timeout=5)
-            soup = BeautifulSoup(r.text, "html.parser")
-
-            for a in soup.find_all("a", href=True):
-                link = a["href"]
-
-                if "uddg=" in link:
-                    real = urllib.parse.parse_qs(
-                        urllib.parse.urlparse(link).query
-                    ).get("uddg")
-
-                    if real:
-                        result_list.append(real[0])
-
-                        if len(result_list) >= MAX_RESULTS:
-                            break
+            # 🔵 Bing
+            bing = requests.get(
+                f"https://www.bing.com/search?q={dork}",
+                headers=headers,
+                timeout=5
+            )
+            result_list += extract_links(bing.text)
 
             time.sleep(1)
 
         except:
             pass
 
-    return jsonify({"results": result_list})
+    # 🔥 remove duplicate
+    clean = []
+    for x in result_list:
+        if x not in clean:
+            clean.append(x)
+
+    return jsonify({"results": clean[:MAX_RESULTS]})
 
 
 if __name__ == "__main__":
