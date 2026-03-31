@@ -1,6 +1,7 @@
 from flask import Flask, request, render_template_string, jsonify
 import requests, urllib.parse, random, re, time
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 
 app = Flask(__name__)
 
@@ -15,7 +16,7 @@ HTML = """
 <!DOCTYPE html>
 <html>
 <head>
-<title>Recon Pro Dashboard</title>
+<title>Recon Ultimate</title>
 <style>
 body {
     margin:0;
@@ -23,93 +24,39 @@ body {
     background: linear-gradient(135deg,#2b1055,#1a2a6c);
     color:white;
 }
-
-/* HEADER */
-.header {
-    text-align:center;
-    padding:30px;
-}
-
+.header { text-align:center; padding:20px; }
 input {
-    width:60%;
-    padding:15px;
-    border-radius:30px;
-    border:none;
-    outline:none;
-    font-size:16px;
+    width:60%; padding:12px; border-radius:30px;
+    border:none; font-size:16px;
 }
-
-/* BUTTON */
 button {
-    padding:10px 20px;
-    margin:5px;
-    border:none;
-    border-radius:20px;
-    background:#6a5acd;
-    color:white;
-    cursor:pointer;
+    padding:10px 20px; margin:5px;
+    border:none; border-radius:20px;
+    background:#6a5acd; color:white;
 }
-button:hover {
-    background:#7b68ee;
-}
-
-/* TABLE */
 table {
-    width:90%;
-    margin:20px auto;
+    width:95%; margin:20px auto;
     border-collapse:collapse;
-    background:rgba(0,0,0,0.3);
-    border-radius:10px;
-    overflow:hidden;
 }
-th, td {
-    padding:10px;
-    text-align:left;
-}
-th {
-    background:#4b0082;
-}
-tr:nth-child(even) {
-    background:rgba(255,255,255,0.05);
-}
-a {
-    color:#8ab4f8;
-    text-decoration:none;
-}
-
-/* BADGE */
-.badge {
-    padding:4px 8px;
-    border-radius:6px;
-    font-size:12px;
-}
-.ok { background:#4caf50; }
-.err { background:#e53935; }
-.login { background:#ff9800; }
-
-.controls {
-    text-align:center;
-}
+th,td { padding:8px; }
+th { background:#4b0082; }
+tr:nth-child(even){background:rgba(255,255,255,0.05);}
+a{color:#8ab4f8;}
+.badge{padding:3px 6px;border-radius:6px;font-size:12px;}
+.ok{background:#4caf50;}
+.err{background:#e53935;}
+.match{background:#ff9800;}
 </style>
 </head>
 <body>
 
 <div class="header">
-    <h1>🔎 Recon Pro Dashboard</h1>
-    <input id="q" placeholder='app="wordpress" && title="login"'>
-    <br><br>
-    <button onclick="start()">START</button>
-    <button onclick="loadMore()">LOAD MORE</button>
-    <button onclick="clearData()">CLEAR</button>
-</div>
-
-<div class="controls">
-    Filter Status:
-    <select id="filter" onchange="render()">
-        <option value="all">All</option>
-        <option value="200">200</option>
-        <option value="403">403</option>
-    </select>
+<h2>💀 Recon Ultimate (Scanner + Crawler)</h2>
+<input id="q" placeholder='app="wordpress" && body="business/register"'>
+<br>
+<button onclick="start()">START</button>
+<button onclick="loadMore()">LOAD MORE</button>
+<button onclick="clearData()">CLEAR</button>
 </div>
 
 <table>
@@ -117,26 +64,21 @@ a {
 <tr>
 <th>URL</th>
 <th>Status</th>
-<th>Type</th>
+<th>Login</th>
+<th>Match</th>
 <th>Domain</th>
 </tr>
 </thead>
 <tbody id="table"></tbody>
 </table>
 
-<div style="text-align:center;">
-<img src="https://www.google.com/favicon.ico" onclick="loadMore()" style="width:40px;cursor:pointer;">
-</div>
-
 <script>
-let page = 1;
-let query = "";
-let dataAll = [];
+let page=1,query="",dataAll=[];
 
 function start(){
-    page = 1;
-    dataAll = [];
-    query = document.getElementById("q").value;
+    page=1;
+    dataAll=[];
+    query=document.getElementById("q").value;
     fetchData();
 }
 
@@ -146,8 +88,8 @@ function loadMore(){
 }
 
 function clearData(){
-    dataAll = [];
-    document.getElementById("table").innerHTML = "";
+    dataAll=[];
+    document.getElementById("table").innerHTML="";
 }
 
 function fetchData(){
@@ -168,27 +110,22 @@ function fetchData(){
 }
 
 function render(){
-    let filter = document.getElementById("filter").value;
-    let tbody = document.getElementById("table");
-    tbody.innerHTML = "";
+    let t=document.getElementById("table");
+    t.innerHTML="";
 
     dataAll.forEach(x=>{
-        if(filter !== "all" && x.status != filter) return;
+        let login=x.is_login?'<span class="badge ok">YES</span>':'NO';
+        let match=x.match?'<span class="badge match">YES</span>':'NO';
+        let statusClass=x.status==200?"ok":"err";
 
-        let type = x.is_login ? 
-            '<span class="badge login">LOGIN</span>' : 
-            '<span class="badge">NORMAL</span>';
-
-        let statusClass = x.status == 200 ? "ok" : "err";
-
-        let row = `
+        t.innerHTML+=`
         <tr>
             <td><a href="${x.url}" target="_blank">${x.url}</a></td>
             <td><span class="badge ${statusClass}">${x.status}</span></td>
-            <td>${type}</td>
+            <td>${login}</td>
+            <td>${match}</td>
             <td>${x.domain}</td>
         </tr>`;
-        tbody.innerHTML += row;
     });
 }
 </script>
@@ -238,7 +175,6 @@ def search(dork,page):
     try:
         r=requests.get(url,headers={"User-Agent":random.choice(UA)},timeout=5)
         soup=BeautifulSoup(r.text,"html.parser")
-
         links=[]
         for a in soup.find_all("a",href=True):
             h=a["href"]
@@ -260,9 +196,37 @@ def analyze(url):
         status=0
 
     domain=urllib.parse.urlparse(url).netloc
-    is_login = any(x in url.lower() for x in ["login","admin"])
+    is_login=any(x in url.lower() for x in ["login","admin"])
 
     return {"url":url,"status":status,"domain":domain,"is_login":is_login}
+
+# ================= CONTENT SCANNER =================
+def content_match(url,patterns):
+    try:
+        r=requests.get(url,timeout=5)
+        text=r.text.lower()
+        for p in patterns:
+            if p.lower() in text:
+                return True
+    except:
+        pass
+    return False
+
+# ================= CRAWLER =================
+def crawl(url,patterns,limit=3):
+    found=[]
+    try:
+        r=requests.get(url,timeout=5)
+        soup=BeautifulSoup(r.text,"html.parser")
+
+        links=[urljoin(url,a["href"]) for a in soup.find_all("a",href=True)]
+
+        for link in links[:limit]:
+            if content_match(link,patterns):
+                found.append(link)
+    except:
+        pass
+    return found
 
 # ================= API =================
 @app.route("/api",methods=["POST"])
@@ -271,15 +235,38 @@ def api():
     q=data["q"]
     page=data.get("page",1)
 
+    parsed=parse_fofa(q)
     dorks=generate(q)
+
+    patterns=[]
+    if "body" in parsed:
+        patterns.append(parsed["body"])
+
     results=[]
 
     for d in dorks[:5]:
         links=search(d,page)
-        for l in links[:10]:
-            results.append(analyze(l))
+
+        for l in links[:8]:
+            data=analyze(l)
+
+            # content scan
+            if patterns:
+                data["match"]=content_match(l,patterns)
+            else:
+                data["match"]=False
+
+            # crawler scan
+            if not data["match"] and patterns:
+                crawled=crawl(l,patterns)
+                if crawled:
+                    data["match"]=True
+
+            results.append(data)
+
         time.sleep(0.5)
 
+    # dedup
     seen=set()
     clean=[]
     for r in results:
