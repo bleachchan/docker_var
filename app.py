@@ -2,6 +2,8 @@ from flask import Flask, request, render_template_string, jsonify
 import requests
 from bs4 import BeautifulSoup
 import urllib.parse
+import random
+import time
 
 app = Flask(__name__)
 
@@ -74,6 +76,7 @@ function start(){
     page = 1;
     allResults = [];
     document.getElementById("result").innerHTML = "";
+    document.getElementById("count").innerText = 0;
     fetchData();
 }
 
@@ -129,14 +132,20 @@ def api():
     dorks = data["dork"].split("\\n")
     page = int(data.get("page", 1))
 
-    headers = {"User-Agent": "Mozilla/5.0"}
-    result_list = []
+    headers = {
+        "User-Agent": f"Mozilla/5.0 {random.randint(1000,9999)}"
+    }
 
-    MAX_RESULTS = 30  # per load
+    result_list = []
+    MAX_RESULTS = 30
+
+    random.shuffle(dorks)
 
     for dork in dorks[:5]:
         try:
-            url = f"https://duckduckgo.com/html/?q={dork}&s={(page-1)*30}"
+            offset = random.randint(0, 50) + (page * 10)
+            url = f"https://duckduckgo.com/html/?q={dork}&s={offset}"
+
             r = requests.get(url, headers=headers, timeout=5)
             soup = BeautifulSoup(r.text, "html.parser")
 
@@ -153,6 +162,8 @@ def api():
 
                         if len(result_list) >= MAX_RESULTS:
                             break
+
+            time.sleep(1)
 
         except:
             pass
